@@ -2,7 +2,7 @@
   "name": "utilities",
   "version": "1.0.0",
   "description": "",
-  "main": "src/index.js",
+  "main": "app.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",

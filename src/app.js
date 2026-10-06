@@ -36,10 +36,14 @@ export function crearApp(config, consultar = consultarDocumento) {
       next(new ApiError(429, 'RATE_LIMIT_EXCEEDED', 'Demasiadas consultas. Intenta nuevamente más tarde.'));
     },
   });
-  app.get('/health', (req, res) => res.json({ status: 'ok' }));
+  app.get('/', (req, res) => res.json({
+    service: 'API DNI/RUC',
+    endpoints: ['/api/dni/:numero', '/api/ruc/:numero', '/api/health'],
+  }));
+  app.get(['/health', '/api/health'], (req, res) => res.json({ status: 'ok' }));
   for (const tipo of ['dni', 'ruc']) {
-    app.use(`/${tipo}`, limiter);
-    app.get(`/${tipo}/:numero`, async (req, res) => {
+    app.use([`/${tipo}`, `/api/${tipo}`], limiter);
+    app.get([`/${tipo}/:numero`, `/api/${tipo}/:numero`], async (req, res) => {
       validarDocumento(tipo, req.params.numero);
       res.json({ success: true, data: await consultar(tipo, req.params.numero) });
     });

@@ -42,3 +42,25 @@ npm.cmd run consultar -- ruc 20131312955
 ```
 
 Las pruebas usan respuestas simuladas y no consumen la cuota de APIsPERU.
+
+## Vercel
+
+La entrada `app.js` exporta la aplicación Express sin abrir un puerto. `vercel.json` selecciona el framework Express. El servidor de `src/server.js` se conserva para ejecución local.
+
+1. Subir estos cambios y configurar la raíz del proyecto en la carpeta que contiene `package.json` y `app.js`.
+2. En Settings → Environment Variables agregar `APIS_PERU_TOKEN` con el token real para Production (y Preview si se necesita). El `.env` local no se sube al repositorio.
+3. Si se consulta desde una web, configurar `CORS_ORIGINS` con el origen de esa web, por ejemplo `https://mi-frontend.vercel.app`, sin barra final. Se pueden incluir varios separados por comas.
+4. Quitar overrides anteriores de Build Command y Output Directory; usar el framework Express y sus valores predeterminados.
+5. Hacer un nuevo deployment después de configurar las variables.
+
+Endpoints públicos, reemplazando `TU-PROYECTO` por el dominio del deployment:
+
+```text
+GET https://TU-PROYECTO.vercel.app/api/dni/01234567
+GET https://TU-PROYECTO.vercel.app/api/ruc/20131312955
+GET https://TU-PROYECTO.vercel.app/api/health
+```
+
+También funcionan las rutas originales `/dni/:numero`, `/ruc/:numero` y `/health`. `/` devuelve un listado de endpoints. No se envía el token de APIsPERU desde el cliente.
+
+`/api/health` verifica el proceso incluso si falta el token; las consultas requieren `APIS_PERU_TOKEN`. Si devuelve `500`, revisar las variables del deployment; si devuelve `403` con `ORIGIN_NOT_ALLOWED`, revisar `CORS_ORIGINS`. El límite en memoria se aplica por instancia de Vercel, no es una cuota global del deployment.

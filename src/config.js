@@ -8,8 +8,8 @@ function entero(nombre, valor, defecto, maximo) {
   return numero;
 }
 
-export function cargarConfiguracion(env = process.env) {
-  if (!env.APIS_PERU_TOKEN?.trim()) throw new Error('Falta APIS_PERU_TOKEN en .env.');
+export function cargarConfiguracion(env = process.env, { requireToken = true } = {}) {
+  if (requireToken && !env.APIS_PERU_TOKEN?.trim()) throw new Error('Falta APIS_PERU_TOKEN en el entorno.');
   const origenes = (env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:3000')
     .split(',').map(valor => valor.trim()).filter(Boolean);
   for (const origen of origenes) {

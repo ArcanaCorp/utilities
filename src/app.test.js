@@ -85,3 +85,36 @@ test('configuración rechaza token faltante, límites inválidos y CORS abierto'
   }
   assert.equal(cargarConfiguracion({ APIS_PERU_TOKEN: 'prueba' }).trustProxy, false);
 });
+
+test('rutas /api funcionan y comparten la cuota con las rutas originales', async t => {
+  const base = await iniciar(t, async (tipo, numero) => ({ [tipo]: numero }), { RATE_LIMIT_MAX: '2' });
+  const root = await fetch(base + '/');
+  assert.equal(root.status, 200);
+  assert.ok((await root.json()).endpoints.includes('/api/ruc/:numero'));
+  const dni = await fetch(base + '/api/dni/01234567');
+  assert.equal(dni.status, 200);
+  assert.equal((await dni.json()).data.dni, '01234567');
+  const ruc = await fetch(base + '/api/ruc/20131312955');
+  assert.equal(ruc.status, 200);
+  assert.equal((await ruc.json()).data.ruc, '20131312955');
+  assert.equal((await fetch(base + '/dni/01234567')).status, 429);
+  assert.equal((await fetch(base + '/api/health')).status, 200);
+});
+
+test('entrada Vercel exporta handler y sirve health aunque falte el token', async t => {
+  const originalToken = process.env.APIS_PERU_TOKEN;
+  process.env.APIS_PERU_TOKEN = '';
+  t.after(() => {
+    if (originalToken === undefined) delete process.env.APIS_PERU_TOKEN;
+    else process.env.APIS_PERU_TOKEN = originalToken;
+  });
+  const { default: app } = await import('../app.js');
+  assert.equal(typeof app, 'function');
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  assert.equal((await fetch(base + '/api/health')).status, 200);
+  assert.equal((await fetch(base + '/ruc/10752093828')).status, 500);
+  assert.equal((await fetch(base + '/dni/123')).status, 400);
+});

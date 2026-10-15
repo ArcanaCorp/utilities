@@ -4,10 +4,12 @@ import { once } from 'node:events';
 import { crearApp } from './app.js';
 import { cargarConfiguracion } from './config.js';
 import { ApiError } from './errors.js';
+import { generateKeyPairSync, verify } from 'node:crypto';
+import { crearEmisorLicencias } from './licensing/issuer.js';
 
-async function iniciar(t, consultar, opciones = {}) {
+async function iniciar(t, consultar, opciones = {}, emitirLicencia) {
   const config = cargarConfiguracion({ APIS_PERU_TOKEN: 'prueba', ...opciones });
-  const server = crearApp(config, consultar).listen(0, '127.0.0.1');
+  const server = crearApp(config, consultar, emitirLicencia).listen(0, '127.0.0.1');
   await once(server, 'listening');
   t.after(() => new Promise(resolve => {
     server.close(resolve);
@@ -80,7 +82,13 @@ test('rate limit se comparte entre DNI y RUC y no consulta al excederse', async 
 
 test('configuración rechaza token faltante, límites inválidos y CORS abierto', () => {
   assert.throws(() => cargarConfiguracion({}), /APIS_PERU_TOKEN/);
-  for (const overrides of [{ PORT: '0' }, { RATE_LIMIT_MAX: '-1' }, { RATE_LIMIT_WINDOW_MS: 'abc' }, { CORS_ORIGINS: '*' }]) {
+  for (const overrides of [
+    { PORT: '0' },
+    { RATE_LIMIT_MAX: '-1' },
+    { RATE_LIMIT_WINDOW_MS: 'abc' },
+    { CORS_ORIGINS: '*' },
+    { LICENSING_API_TOKEN: 'corto' },
+  ]) {
     assert.throws(() => cargarConfiguracion({ APIS_PERU_TOKEN: 'prueba', ...overrides }));
   }
   assert.equal(cargarConfiguracion({ APIS_PERU_TOKEN: 'prueba' }).trustProxy, false);
@@ -99,6 +107,73 @@ test('rutas /api funcionan y comparten la cuota con las rutas originales', async
   assert.equal((await ruc.json()).data.ruc, '20131312955');
   assert.equal((await fetch(base + '/dni/01234567')).status, 429);
   assert.equal((await fetch(base + '/api/health')).status, 200);
+});
+
+test('emite licencias solo con token válido y para IDs de instalación válidos', async t => {
+  const base = await iniciar(t, async () => ({}), {
+    LICENSING_API_TOKEN: 'a'.repeat(32),
+  }, async id => `licencia-${id}`);
+  const unauthorized = await fetch(base + '/api/licenses/issue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ installationId: 'A'.repeat(32) }),
+  });
+  assert.equal(unauthorized.status, 401);
+  assert.equal((await unauthorized.json()).error.code, 'UNAUTHORIZED');
+
+  const invalidId = await fetch(base + '/api/licenses/issue', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${'a'.repeat(32)}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ installationId: 'invalido' }),
+  });
+  assert.equal(invalidId.status, 400);
+  assert.equal((await invalidId.json()).error.code, 'INVALID_INSTALLATION_ID');
+
+  const issued = await fetch(base + '/api/licenses/issue', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${'a'.repeat(32)}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ installationId: '00112233445566778899AABBCCDDEEFF' }),
+  });
+  assert.equal(issued.status, 201);
+  assert.deepEqual(await issued.json(), {
+    success: true,
+    data: { license: 'licencia-00112233445566778899AABBCCDDEEFF' },
+  });
+
+  const invalidJson = await fetch(base + '/api/licenses/issue', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${'a'.repeat(32)}`, 'Content-Type': 'application/json' },
+    body: '{"installationId":',
+  });
+  assert.equal(invalidJson.status, 400);
+  assert.equal((await invalidJson.json()).error.code, 'INVALID_JSON');
+});
+
+test('la emisión queda deshabilitada si no se configuró su secreto', async t => {
+  const base = await iniciar(t, async () => ({}));
+  const response = await fetch(base + '/api/licenses/issue', { method: 'POST' });
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error.code, 'LICENSING_NOT_CONFIGURED');
+});
+
+test('el emisor firma un token compatible con el protocolo offline', async () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const rawPublicKey = Buffer.from(publicKey.export({ format: 'jwk' }).x, 'base64url').toString('hex');
+  const emitir = crearEmisorLicencias({
+    licensingPrivateKey: privateKey.export({ format: 'pem', type: 'pkcs8' }),
+  }, { testkey: rawPublicKey });
+  const installationId = '00112233445566778899AABBCCDDEEFF';
+  const license = await emitir(installationId);
+  const [, keyId, signedId, signature] = license.split('.');
+  assert.equal(keyId, 'testkey');
+  assert.equal(signedId, installationId);
+  assert.equal(verify(
+    null,
+    Buffer.from(`MYPE-ANDALE:LICENSE:1:${keyId}:${signedId}`, 'ascii'),
+    publicKey,
+    Buffer.from(signature, 'hex'),
+  ), true);
+  await assert.rejects(emitir('not-an-id'), error => error.code === 'INVALID_INSTALLATION_ID');
 });
 
 test('entrada Vercel exporta handler y sirve health aunque falte el token', async t => {

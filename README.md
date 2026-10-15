@@ -24,6 +24,8 @@ Estados: `400` documento inválido, `403` origen bloqueado, `404` ruta/documento
 ## Configuración
 
 - `APIS_PERU_TOKEN`: token usado exclusivamente en el servidor como `Authorization: Bearer`.
+- `LICENSING_API_TOKEN`: secreto administrativo de al menos 32 caracteres para emitir licencias; si falta, la ruta de emisión queda deshabilitada.
+- `LICENSING_PRIVATE_KEY_PATH`: ruta local al PEM Ed25519 privado. Por defecto `private/licensing/arcna1.pem`. En un despliegue configura `LICENSING_PRIVATE_KEY` como variable secreta en lugar de subir el archivo.
 - `PORT`: 3000 por defecto.
 - `HOST`: `127.0.0.1` por defecto; `0.0.0.0` para escuchar fuera del equipo/contenedor.
 - `CORS_ORIGINS`: orígenes separados por comas, sin rutas. Por defecto `http://localhost:5173,http://localhost:3000`.
@@ -31,9 +33,25 @@ Estados: `400` documento inválido, `403` origen bloqueado, `404` ruta/documento
 - `RATE_LIMIT_MAX`: 30 solicitudes por IP, compartidas entre DNI y RUC, por ventana.
 - `TRUST_PROXY`: vacío por defecto; configurar únicamente IP/subred del proxy confiable (por ejemplo `127.0.0.1`). No habilitar confianza global en cabeceras enviadas por clientes.
 
-El límite usa memoria del proceso: se reinicia al arrancar y cada instancia tiene su contador. Para varias instancias se necesita un almacén compartido, por ejemplo Redis. CORS controla acceso desde navegadores, no autentica clientes; esta API no agrega autenticación de consumidores. Para publicación usar HTTPS y el control de acceso correspondiente a la aplicación.
+El límite usa memoria del proceso: se reinicia al arrancar y cada instancia tiene su contador. Para varias instancias se necesita un almacén compartido, por ejemplo Redis. CORS controla acceso desde navegadores, no autentica clientes; las consultas DNI/RUC no agregan autenticación de consumidores. La ruta administrativa de emisión requiere su propio token. Para publicación usar HTTPS y el control de acceso correspondiente a la aplicación.
 
 Se incluyen Helmet, identificadores de solicitud, `Cache-Control: no-store`, tiempo de espera de 15 segundos al proveedor y cierre ordenado. No se registran números de documento, datos personales ni tokens.
+
+## Emisión privada de licencias MYPE Ándale
+
+Después de confirmar manualmente el pago, ARCANA puede emitir una licencia firmada con:
+
+```http
+POST /api/licenses/issue
+Authorization: Bearer <LICENSING_API_TOKEN>
+Content-Type: application/json
+
+{"installationId":"ID-DE-32-DIGITOS-HEX"}
+```
+
+También está disponible como `POST /licenses/issue`. El ID acepta guiones y espacios. Una respuesta `201` contiene el código en `data.license`, listo para entregar al cliente y pegar en la app. La API no confirma pagos, crea pedidos ni genera un archivo QR; quien la opera debe verificar el pago y el ID antes de solicitar la emisión. La ruta limita a 5 solicitudes por ventana configurada y no está habilitada si falta el secreto administrativo.
+
+En local, guarda la clave en `private/licensing/arcna1.pem`, excluida de Git. En Vercel u otro host, configura `LICENSING_API_TOKEN` y `LICENSING_PRIVATE_KEY` como secretos de entorno, además del token de APIsPERU para las consultas. Nunca envíes esos secretos desde el cliente ni expongas esta ruta en una interfaz pública.
 
 ```powershell
 npm.cmd test
@@ -48,7 +66,7 @@ Las pruebas usan respuestas simuladas y no consumen la cuota de APIsPERU.
 La entrada `app.js` exporta la aplicación Express sin abrir un puerto. `vercel.json` selecciona el framework Express. El servidor de `src/server.js` se conserva para ejecución local.
 
 1. Subir estos cambios y configurar la raíz del proyecto en la carpeta que contiene `package.json` y `app.js`.
-2. En Settings → Environment Variables agregar `APIS_PERU_TOKEN` con el token real para Production (y Preview si se necesita). El `.env` local no se sube al repositorio.
+2. En Settings → Environment Variables agregar `APIS_PERU_TOKEN` para Production (y Preview si se necesita). Para habilitar emisión, configurar también `LICENSING_API_TOKEN` y `LICENSING_PRIVATE_KEY` como secretos. El `.env` local no se sube al repositorio.
 3. Si se consulta desde una web, configurar `CORS_ORIGINS` con el origen de esa web, por ejemplo `https://mi-frontend.vercel.app`, sin barra final. Se pueden incluir varios separados por comas.
 4. Quitar overrides anteriores de Build Command y Output Directory; usar el framework Express y sus valores predeterminados.
 5. Hacer un nuevo deployment después de configurar las variables.

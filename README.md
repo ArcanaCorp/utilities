@@ -25,6 +25,7 @@ Estados: `400` documento inválido, `403` origen bloqueado, `404` ruta/documento
 
 - `APIS_PERU_TOKEN`: token usado exclusivamente en el servidor como `Authorization: Bearer`.
 - `LICENSING_API_TOKEN`: secreto administrativo de al menos 32 caracteres para emitir licencias; si falta, la ruta de emisión queda deshabilitada.
+- `LICENSING_UI_ENABLED`: usar `true` para habilitar el formulario de emisión. Mantener en `false` salvo que se limite el acceso con protección del deployment (Vercel Deployment Protection) o localhost.
 - `LICENSING_PRIVATE_KEY_PATH`: ruta local al PEM Ed25519 privado. Por defecto `private/licensing/arcna1.pem`. En un despliegue configura `LICENSING_PRIVATE_KEY` como variable secreta en lugar de subir el archivo.
 - `PORT`: 3000 por defecto.
 - `HOST`: `127.0.0.1` por defecto; `0.0.0.0` para escuchar fuera del equipo/contenedor.
@@ -39,7 +40,11 @@ Se incluyen Helmet, identificadores de solicitud, `Cache-Control: no-store`, tie
 
 ## Emisión privada de licencias MYPE Ándale
 
-Después de confirmar manualmente el pago, ARCANA puede emitir una licencia firmada con:
+Abre `GET /licenses/issue` para usar el formulario privado. Solo necesitas ingresar el ID del cliente: el servidor usa `LICENSING_API_TOKEN` internamente y nunca lo envía al navegador. El formulario muestra el código junto con su QR descargable.
+
+La interfaz y su ruta `POST /api/licenses/issue/ui` están desactivadas por defecto. Para habilitarlas, establece `LICENSING_UI_ENABLED=true` y protege todo el deployment con Vercel Deployment Protection o limita el servidor a localhost/red administrativa. No publiques esta ruta sin una barrera de acceso: cualquiera que pueda invocarla podría emitir licencias. En producción usa HTTPS. El endpoint JSON original `POST /api/licenses/issue` permanece protegido por el encabezado `Authorization` con el token interno.
+
+El endpoint autenticado también se puede usar directamente después de confirmar manualmente el pago:
 
 ```http
 POST /api/licenses/issue
@@ -49,9 +54,9 @@ Content-Type: application/json
 {"installationId":"ID-DE-32-DIGITOS-HEX"}
 ```
 
-También está disponible como `POST /licenses/issue`. El ID acepta guiones y espacios. Una respuesta `201` contiene el código en `data.license`, listo para entregar al cliente y pegar en la app. La API no confirma pagos, crea pedidos ni genera un archivo QR; quien la opera debe verificar el pago y el ID antes de solicitar la emisión. La ruta limita a 5 solicitudes por ventana configurada y no está habilitada si falta el secreto administrativo.
+También está disponible como `POST /licenses/issue`. El ID acepta guiones y espacios. Una respuesta `201` contiene el código en `data.license` y el QR PNG como `data.qrDataUrl`. La API no confirma pagos ni crea pedidos; quien la opera debe verificar el pago y el ID antes de solicitar la emisión. La ruta limita a 5 solicitudes por ventana configurada y no está habilitada si falta el secreto administrativo.
 
-En local, guarda la clave en `private/licensing/arcna1.pem`, excluida de Git. En Vercel u otro host, configura `LICENSING_API_TOKEN` y `LICENSING_PRIVATE_KEY` como secretos de entorno, además del token de APIsPERU para las consultas. Nunca envíes esos secretos desde el cliente ni expongas esta ruta en una interfaz pública.
+En local, guarda la clave en `private/licensing/arcna1.pem`, excluida de Git. En Vercel u otro host, configura `LICENSING_API_TOKEN` y `LICENSING_PRIVATE_KEY` como secretos de entorno, además del token de APIsPERU para las consultas. Activa `LICENSING_UI_ENABLED=true` solo después de habilitar Deployment Protection. Nunca envíes esos secretos desde el cliente.
 
 ```powershell
 npm.cmd test
@@ -66,10 +71,11 @@ Las pruebas usan respuestas simuladas y no consumen la cuota de APIsPERU.
 La entrada `app.js` exporta la aplicación Express sin abrir un puerto. `vercel.json` selecciona el framework Express. El servidor de `src/server.js` se conserva para ejecución local.
 
 1. Subir estos cambios y configurar la raíz del proyecto en la carpeta que contiene `package.json` y `app.js`.
-2. En Settings → Environment Variables agregar `APIS_PERU_TOKEN` para Production (y Preview si se necesita). Para habilitar emisión, configurar también `LICENSING_API_TOKEN` y `LICENSING_PRIVATE_KEY` como secretos. El `.env` local no se sube al repositorio.
-3. Si se consulta desde una web, configurar `CORS_ORIGINS` con el origen de esa web, por ejemplo `https://mi-frontend.vercel.app`, sin barra final. Se pueden incluir varios separados por comas.
-4. Quitar overrides anteriores de Build Command y Output Directory; usar el framework Express y sus valores predeterminados.
-5. Hacer un nuevo deployment después de configurar las variables.
+2. En Settings → Environment Variables agregar `APIS_PERU_TOKEN` para Production (y Preview si se necesita). Para habilitar emisión, configurar también `LICENSING_API_TOKEN` y `LICENSING_PRIVATE_KEY` como secretos.
+3. Si se desea usar el formulario, configurar Deployment Protection para impedir el acceso público al deployment y agregar `LICENSING_UI_ENABLED=true`. Mantenerlo en `false` si no se ha protegido el acceso. El `.env` local no se sube al repositorio.
+4. Si se consulta desde una web, configurar `CORS_ORIGINS` con el origen de esa web, por ejemplo `https://mi-frontend.vercel.app`, sin barra final. Se pueden incluir varios separados por comas.
+5. Quitar overrides anteriores de Build Command y Output Directory; usar el framework Express y sus valores predeterminados.
+6. Hacer un nuevo deployment después de configurar las variables.
 
 Endpoints públicos, reemplazando `TU-PROYECTO` por el dominio del deployment:
 

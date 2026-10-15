@@ -17,7 +17,11 @@ La app no contiene la clave privada ni consulta un servidor para activar. Una li
 
 ## Emitir con la API privada
 
-Después de confirmar manualmente el pago y verificar el ID, ARCANA puede solicitar una licencia a la ruta administrativa:
+Abre `GET /licenses/issue` para mostrar el formulario de ARCANA. Solo ingresa el ID: el servidor utiliza `LICENSING_API_TOKEN` internamente; el secreto nunca se envía al navegador. La página muestra el código firmado y un QR PNG descargable.
+
+El formulario y su endpoint `POST /api/licenses/issue/ui` están desactivados por defecto. Para habilitarlos, establece `LICENSING_UI_ENABLED=true` **solo después** de restringir el deployment con Vercel Deployment Protection o limitarlo a localhost/red administrativa. Sin esa protección, cualquier persona podría emitir licencias. El endpoint original `POST /api/licenses/issue` sigue requiriendo el encabezado `Authorization` con el token interno.
+
+También se puede solicitar directamente por API después de confirmar manualmente el pago y verificar el ID:
 
 ```http
 POST /api/licenses/issue
@@ -27,9 +31,9 @@ Content-Type: application/json
 {"installationId":"ID-COMPLETO-DEL-CLIENTE"}
 ```
 
-El ID debe contener 32 dígitos hexadecimales; se aceptan guiones y espacios. La respuesta `201` incluye `data.license`, el código que se entrega al cliente para copiar y pegar en la app. También funciona `POST /licenses/issue`.
+El ID debe contener 32 dígitos hexadecimales; se aceptan guiones y espacios. La respuesta `201` incluye `data.license` y `data.qrDataUrl`; el formulario visual muestra ambas opciones para entregarlas al cliente. También funciona `POST /licenses/issue`.
 
-La ruta no verifica compras ni genera un archivo QR: no la invoques hasta confirmar el pago por el proceso de ARCANA. Requiere un `LICENSING_API_TOKEN` de al menos 32 caracteres y queda deshabilitada si falta el secreto. No la llames desde la app ni desde una página pública.
+La ruta no verifica compras: no la invoques hasta confirmar el pago por el proceso de ARCANA. Requiere un `LICENSING_API_TOKEN` de al menos 32 caracteres y queda deshabilitada si falta el secreto. No incorpores el token en una app cliente, en una URL ni en una página de acceso público.
 
 ## Generar una licencia sin asistencia
 
@@ -73,7 +77,7 @@ La herramienta comprueba que la clave privada corresponda a la clave pública de
 
 ## Operación manual actual
 
-ARCANA puede recibir el ID, verificar la compra y emitir la licencia desde la ruta privada o con el generador CLI de la app. La ruta firma el código localmente con la clave configurada y devuelve el texto de la licencia; no automatiza la venta, no guarda pedidos y no entrega archivos QR.
+ARCANA puede recibir el ID, verificar la compra y emitir la licencia desde el formulario privado o con el generador CLI de la app. La ruta firma el código localmente con la clave configurada y devuelve el texto y QR de la licencia; no automatiza la venta ni guarda pedidos.
 
 Mantén un registro privado de pedido, pago confirmado, ID de instalación, fecha de emisión y entrega. La integración automática con un proveedor de pagos todavía no está implementada.
 

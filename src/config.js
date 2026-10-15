@@ -16,6 +16,9 @@ export function cargarConfiguracion(env = process.env, { requireToken = true } =
   if (licensingApiToken && licensingApiToken.length < 32) {
     throw new Error('LICENSING_API_TOKEN debe tener al menos 32 caracteres.');
   }
+  if (env.LICENSING_UI_ENABLED !== undefined && !['true', 'false'].includes(env.LICENSING_UI_ENABLED)) {
+    throw new Error('LICENSING_UI_ENABLED debe ser true o false.');
+  }
   const origenes = (env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:3000')
     .split(',').map(valor => valor.trim()).filter(Boolean);
   for (const origen of origenes) {
@@ -32,6 +35,7 @@ export function cargarConfiguracion(env = process.env, { requireToken = true } =
     rateLimitMax: entero('RATE_LIMIT_MAX', env.RATE_LIMIT_MAX, 30, 1000000),
     trustProxy: env.TRUST_PROXY?.trim() || false,
     licensingApiToken,
+    licensingUiEnabled: env.LICENSING_UI_ENABLED === 'true',
     licensingPrivateKey: env.LICENSING_PRIVATE_KEY?.trim() || null,
     licensingPrivateKeyPath: resolve(
       env.LICENSING_PRIVATE_KEY_PATH || fileURLToPath(new URL('../private/licensing/arcna1.pem', import.meta.url)),

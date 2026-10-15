@@ -88,6 +88,7 @@ test('configuración rechaza token faltante, límites inválidos y CORS abierto'
     { RATE_LIMIT_WINDOW_MS: 'abc' },
     { CORS_ORIGINS: '*' },
     { LICENSING_API_TOKEN: 'corto' },
+    { LICENSING_UI_ENABLED: 'yes' },
   ]) {
     assert.throws(() => cargarConfiguracion({ APIS_PERU_TOKEN: 'prueba', ...overrides }));
   }
@@ -112,6 +113,8 @@ test('rutas /api funcionan y comparten la cuota con las rutas originales', async
 test('emite licencias solo con token válido y para IDs de instalación válidos', async t => {
   const base = await iniciar(t, async () => ({}), {
     LICENSING_API_TOKEN: 'a'.repeat(32),
+    LICENSING_UI_ENABLED: 'true',
+    RATE_LIMIT_MAX: '20',
   }, async id => `licencia-${id}`);
   const unauthorized = await fetch(base + '/api/licenses/issue', {
     method: 'POST',
@@ -131,14 +134,29 @@ test('emite licencias solo con token válido y para IDs de instalación válidos
 
   const issued = await fetch(base + '/api/licenses/issue', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${'a'.repeat(32)}`, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${'a'.repeat(32)}`,
+      'Content-Type': 'application/json',
+      Origin: 'https://app.example.com',
+      'Sec-Fetch-Site': 'same-origin',
+    },
     body: JSON.stringify({ installationId: '00112233445566778899AABBCCDDEEFF' }),
   });
   assert.equal(issued.status, 201);
-  assert.deepEqual(await issued.json(), {
-    success: true,
-    data: { license: 'licencia-00112233445566778899AABBCCDDEEFF' },
+  const issuedBody = await issued.json();
+  assert.equal(issuedBody.success, true);
+  assert.equal(issuedBody.data.license, 'licencia-00112233445566778899AABBCCDDEEFF');
+  assert.match(issuedBody.data.qrDataUrl, /^data:image\/png;base64,/);
+  assert.ok(Buffer.from(issuedBody.data.qrDataUrl.split(',')[1], 'base64').subarray(0, 8)
+    .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])));
+
+  const uiIssued = await fetch(base + '/api/licenses/issue/ui', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ installationId: '00112233445566778899AABBCCDDEEFF' }),
   });
+  assert.equal(uiIssued.status, 201);
+  assert.equal((await uiIssued.json()).data.license, 'licencia-00112233445566778899AABBCCDDEEFF');
 
   const invalidJson = await fetch(base + '/api/licenses/issue', {
     method: 'POST',
@@ -147,6 +165,36 @@ test('emite licencias solo con token válido y para IDs de instalación válidos
   });
   assert.equal(invalidJson.status, 400);
   assert.equal((await invalidJson.json()).error.code, 'INVALID_JSON');
+});
+
+test('sirve la interfaz HTML y sus recursos del mismo origen', async t => {
+  const base = await iniciar(t, async () => ({}), { LICENSING_UI_ENABLED: 'true' });
+  const page = await fetch(base + '/licenses/issue');
+  assert.equal(page.status, 200);
+  assert.match(page.headers.get('content-type'), /text\/html/);
+  assert.match(page.headers.get('content-security-policy'), /img-src[^;]*data:/);
+  const html = await page.text();
+  assert.match(html, /id="issue-form"/);
+  assert.doesNotMatch(html, /api-token|Token de emisión/);
+
+  const script = await fetch(base + '/licenses/assets/issue.js');
+  assert.equal(script.status, 200);
+  assert.match(script.headers.get('content-type'), /javascript/);
+  const scriptText = await script.text();
+  assert.match(scriptText, /fetch\('\/api\/licenses\/issue\/ui'/);
+  assert.doesNotMatch(scriptText, /Authorization|apiToken/);
+  assert.equal((await fetch(base + '/licenses/assets/issue.css')).status, 200);
+});
+
+test('la interfaz y su ruta UI permanecen cerradas si no se habilitan', async t => {
+  const base = await iniciar(t, async () => ({}));
+  assert.equal((await fetch(base + '/licenses/issue')).status, 404);
+  const response = await fetch(base + '/api/licenses/issue/ui', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ installationId: '00112233445566778899AABBCCDDEEFF' }),
+  });
+  assert.equal(response.status, 404);
 });
 
 test('la emisión queda deshabilitada si no se configuró su secreto', async t => {

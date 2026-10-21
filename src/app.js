@@ -101,15 +101,52 @@ function obtenerBearer(req) {
     return match ? match[1].trim() : '';
 }
 
+
 function origenMismoSitio(req) {
     const origin = req.get('origin');
-
-    if (origin) {
-        return origin === `${req.protocol}://${req.get('host')}`;
-    }
-
     const fetchSite = req.get('sec-fetch-site');
 
+    // Si el navegador indica que la solicitud viene
+    // de otro origen, bloquearla.
+    if (fetchSite && fetchSite !== 'same-origin') {
+        return false;
+    }
+
+    // Obtener el host público.
+    const host = req.get('host');
+
+    if (!host) {
+        return false;
+    }
+
+    // En producción, Vercel puede utilizar un proxy HTTPS.
+    // Usamos el protocolo del origen enviado por el navegador
+    // en lugar de depender exclusivamente de req.protocol.
+    if (origin) {
+        let parsedOrigin;
+
+        try {
+            parsedOrigin = new URL(origin);
+        } catch {
+            return false;
+        }
+
+        // Comparar el dominio y puerto completos.
+        if (parsedOrigin.host !== host) {
+            return false;
+        }
+
+        // Solo permitir HTTP en desarrollo local.
+        const isLocalhost =
+            parsedOrigin.hostname === 'localhost' ||
+            parsedOrigin.hostname === '127.0.0.1';
+
+        return parsedOrigin.protocol === 'https:' ||
+            (isLocalhost && parsedOrigin.protocol === 'http:');
+    }
+
+    // Solicitudes sin Origin:
+    // únicamente si el navegador confirma mismo origen.
     return fetchSite === 'same-origin';
 }
 

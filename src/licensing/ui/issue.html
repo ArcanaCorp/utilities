@@ -1,72 +1,319 @@
+
 <!doctype html>
 <html lang="es">
-  <head>
+<head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f3f6fb">
-    <title>Emitir licencia · MYPE Ándale</title>
+
+    <title>Emisión de licencias · ARCANA</title>
+
     <link rel="stylesheet" href="/licenses/assets/issue.css">
     <script src="/licenses/assets/issue.js" defer></script>
-  </head>
-  <body>
+</head>
+
+<body>
     <main class="layout">
-      <header class="heading">
-        <a class="brand" href="/" aria-label="ARCANA, inicio">
-          <span class="brand-mark" aria-hidden="true">A</span>
-          <span>ARCANA <span class="brand-divider">/</span> MYPE ÁNDALE</span>
-        </a>
-        <span class="secure-label"><span aria-hidden="true"></span> Emisión privada</span>
-      </header>
 
-      <section class="card" aria-labelledby="page-title">
-        <div class="intro">
-          <p class="eyebrow">LICENCIAS · ACTIVACIÓN OFFLINE</p>
-          <h1 id="page-title">Emitir una licencia</h1>
-          <p class="subtitle">Ingresa el ID para generar el código firmado y su QR de activación.</p>
-        </div>
+        <!-- Encabezado -->
+        <header class="heading">
+            <a class="brand" href="/" aria-label="ARCANA, inicio">
+                <span class="brand-mark" aria-hidden="true">A</span>
+                <span>
+                    ARCANA<span class="brand-divider">/</span>LICENCIAS
+                </span>
+            </a>
 
-        <div class="notice" role="note">
-          <span class="notice-icon" aria-hidden="true">i</span>
-          <p>Confirma el pago y verifica el ID del cliente antes de emitir. Esta herramienta no procesa ni confirma pagos.</p>
-        </div>
+            <span class="secure-label">
+                <span aria-hidden="true"></span>
+                Emisión privada
+            </span>
+        </header>
 
-        <form id="issue-form" novalidate>
-          <label for="installation-id">ID de instalación</label>
-          <input id="installation-id" name="installationId" type="text" required
-            placeholder="Ej.: 01234567-89ABCDEF-01234567-89ABCDEF"
-            autocomplete="off" autocapitalize="characters" spellcheck="false"
-            aria-describedby="installation-help">
-          <p class="field-help" id="installation-help">Son 32 caracteres hexadecimales. Se aceptan guiones y espacios.</p>
+        <section class="card" aria-labelledby="page-title">
 
-          <button id="submit-button" type="submit">
-            <span class="button-label">Emitir licencia</span>
-            <span class="button-arrow" aria-hidden="true">→</span>
-          </button>
-          <p class="status" id="status" role="status" aria-live="polite"></p>
-        </form>
+            <!-- Introducción -->
+            <div class="intro">
+                <p class="eyebrow">
+                    ARCANA UTILITIES · ACTIVACIÓN OFFLINE
+                </p>
 
-        <section class="result" id="result" aria-labelledby="result-title" hidden>
-          <div class="result-heading">
-            <span class="success-mark" aria-hidden="true">✓</span>
-            <div>
-              <p class="eyebrow">EMISIÓN COMPLETADA</p>
-              <h2 id="result-title">Licencia lista</h2>
+                <h1 id="page-title">Emisión de licencias</h1>
+
+                <p class="subtitle">
+                    Plataforma administrativa para generar licencias
+                    firmadas de los productos ARCANA.
+                </p>
             </div>
-          </div>
-          <div class="qr-frame">
-            <img id="qr-image" alt="Código QR de activación de MYPE Ándale">
-          </div>
-          <a class="download-button" id="download-qr" download="licencia-mype-andale.png">
-            Descargar QR PNG <span aria-hidden="true">↓</span>
-          </a>
-          <label for="license-code">Código para copiar o compartir</label>
-          <textarea id="license-code" rows="4" readonly spellcheck="false"></textarea>
-          <button class="copy-button" id="copy-license" type="button">Copiar código</button>
-          <p class="result-note">Entrega el código al cliente o muéstrale el QR para que lo escanee desde la app.</p>
-        </section>
-      </section>
 
-      <footer>La licencia queda vinculada al ID de instalación indicado.</footer>
+            <!-- Inicio de sesión -->
+            <section
+                id="login-section"
+                aria-labelledby="login-title"
+            >
+                <h2 id="login-title">Acceso administrativo</h2>
+
+                <p class="subtitle">
+                    Ingresa tu token de administración para acceder
+                    al sistema de emisión de licencias.
+                </p>
+
+                <form id="login-form" novalidate>
+
+                    <label for="admin-token">
+                        Token de administración
+                    </label>
+
+                    <input
+                        id="admin-token"
+                        name="token"
+                        type="password"
+                        required
+                        autocomplete="off"
+                        spellcheck="false"
+                        placeholder="Ingresa tu token privado"
+                    >
+
+                    <p class="field-help">
+                        Utiliza el token configurado en
+                        LICENSING_API_TOKEN.
+                    </p>
+
+                    <button id="login-button" type="submit">
+                        <span class="button-label">
+                            Iniciar sesión
+                        </span>
+
+                        <span
+                            class="button-arrow"
+                            aria-hidden="true"
+                        >→</span>
+                    </button>
+
+                    <p
+                        id="login-status"
+                        class="status"
+                        role="status"
+                        aria-live="polite"
+                    ></p>
+
+                </form>
+            </section>
+
+            <!-- Panel administrativo -->
+            <section
+                id="admin-section"
+                aria-labelledby="admin-title"
+                hidden
+            >
+
+                <div class="result-heading">
+                    <div>
+                        <p class="eyebrow">
+                            SESIÓN ADMINISTRATIVA
+                        </p>
+
+                        <h2 id="admin-title">
+                            Nueva licencia
+                        </h2>
+                    </div>
+
+                    <button
+                        id="logout-button"
+                        class="copy-button"
+                        type="button"
+                    >
+                        Cerrar sesión
+                    </button>
+                </div>
+
+                <!-- Aviso -->
+                <div class="notice" role="note">
+                    <span
+                        class="notice-icon"
+                        aria-hidden="true"
+                    >i</span>
+
+                    <p>
+                        Confirma el pago y verifica el ID del cliente
+                        antes de emitir. Esta herramienta no procesa
+                        ni confirma pagos.
+                    </p>
+                </div>
+
+                <!-- Formulario de emisión -->
+                <form id="issue-form" novalidate>
+
+                    <!-- Producto -->
+                    <label for="product-id">
+                        Producto
+                    </label>
+
+                    <select
+                        id="product-id"
+                        name="productId"
+                        required
+                        aria-describedby="product-help"
+                    >
+                        <option
+                            value="mype-andale"
+                            selected
+                        >
+                            MYPE Ándale
+                        </option>
+
+                        <option value="hotel-andale">
+                            Hotel Ándale
+                        </option>
+                    </select>
+
+                    <p
+                        class="field-help"
+                        id="product-help"
+                    >
+                        La licencia será válida únicamente para
+                        el producto seleccionado.
+                    </p>
+
+                    <!-- Instalación -->
+                    <label for="installation-id">
+                        ID de instalación
+                    </label>
+
+                    <input
+                        id="installation-id"
+                        name="installationId"
+                        type="text"
+                        required
+                        placeholder="Ej.: 01234567-89ABCDEF-01234567-89ABCDEF"
+                        autocomplete="off"
+                        autocapitalize="characters"
+                        spellcheck="false"
+                        aria-describedby="installation-help"
+                    >
+
+                    <p
+                        class="field-help"
+                        id="installation-help"
+                    >
+                        Son 32 caracteres hexadecimales.
+                        Se aceptan guiones y espacios.
+                    </p>
+
+                    <!-- Emitir -->
+                    <button
+                        id="submit-button"
+                        type="submit"
+                    >
+                        <span class="button-label">
+                            Emitir licencia
+                        </span>
+
+                        <span
+                            class="button-arrow"
+                            aria-hidden="true"
+                        >→</span>
+                    </button>
+
+                    <p
+                        class="status"
+                        id="status"
+                        role="status"
+                        aria-live="polite"
+                    ></p>
+
+                </form>
+
+                <!-- Resultado -->
+                <section
+                    class="result"
+                    id="result"
+                    aria-labelledby="result-title"
+                    hidden
+                >
+
+                    <div class="result-heading">
+
+                        <span
+                            class="success-mark"
+                            aria-hidden="true"
+                        >✓</span>
+
+                        <div>
+                            <p class="eyebrow">
+                                EMISIÓN COMPLETADA
+                            </p>
+
+                            <h2 id="result-title">
+                                Licencia lista
+                            </h2>
+                        </div>
+
+                    </div>
+
+                    <p class="result-note">
+                        Producto:
+                        <strong id="result-product">
+                            MYPE Ándale
+                        </strong>
+                    </p>
+
+                    <!-- Código QR -->
+                    <div class="qr-frame">
+                        <img
+                            id="qr-image"
+                            alt="Código QR de activación"
+                        >
+                    </div>
+
+                    <!-- Descargar -->
+                    <a
+                        class="download-button"
+                        id="download-qr"
+                        download="licencia-mype-andale.png"
+                    >
+                        Descargar QR PNG
+                        <span aria-hidden="true">↓</span>
+                    </a>
+
+                    <!-- Código -->
+                    <label for="license-code">
+                        Código para copiar o compartir
+                    </label>
+
+                    <textarea
+                        id="license-code"
+                        rows="4"
+                        readonly
+                        spellcheck="false"
+                    ></textarea>
+
+                    <button
+                        class="copy-button"
+                        id="copy-license"
+                        type="button"
+                    >
+                        Copiar código
+                    </button>
+
+                    <p class="result-note">
+                        Entrega el código al cliente o muéstrale
+                        el QR para que lo escanee desde la
+                        aplicación correspondiente.
+                    </p>
+
+                </section>
+
+            </section>
+
+        </section>
+
+        <!-- Pie de página -->
+        <footer>
+            Cada licencia está vinculada al producto
+            y al ID de instalación indicado.
+        </footer>
+
     </main>
-  </body>
+</body>
 </html>
